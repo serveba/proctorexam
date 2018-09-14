@@ -105,7 +105,11 @@ func (c *Client) signParams(params map[string]string) string {
 
 	baseString := ""
 	for i := range keys {
-		baseString = fmt.Sprintf("%s?%s=%s", baseString, keys[i], params[keys[i]])
+		if len(baseString) == 0 {
+			baseString = fmt.Sprintf("%s=%s", keys[i], params[keys[i]])
+		} else {
+			baseString = fmt.Sprintf("%s?%s=%s", baseString, keys[i], params[keys[i]])
+		}
 	}
 
 	hash := hmac.New(sha256.New, []byte(c.apiSecretKey))
