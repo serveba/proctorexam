@@ -55,8 +55,8 @@ func (c *Client) newRequest(method, path string, body interface{}) (*http.Reques
 	nonce = "1527500365052"
 
 	params := map[string]string{
-		"nonce": nonce,
-		"ts":    ts,
+		"nonce":     nonce,
+		"timestamp": ts,
 	}
 
 	signature := c.signParams(params)
