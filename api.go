@@ -51,9 +51,6 @@ func (c *Client) newRequest(method, path string, body interface{}) (*http.Reques
 	ts := strconv.FormatUint(uint64(time.Now().Unix()), 10)
 	nonce := strconv.FormatUint(uint64(random(0, 10000000000000000)), 10)
 
-	ts = "1527500365"
-	nonce = "1527500365052"
-
 	params := map[string]string{
 		"nonce":     nonce,
 		"timestamp": ts,
