@@ -169,8 +169,7 @@ func formatRequest(r *http.Request) string {
 }
 
 func main() {
-
-	baseURL, err := url.Parse("https://protos.proctorexam.com/")
+	baseURL, err := url.Parse(os.Getenv("PE_ENDPOINT"))
 	if err != nil {
 		panic(err)
 	}
@@ -183,7 +182,8 @@ func main() {
 		apiSecretKey: os.Getenv("PE_API_SECRET_KEY"),
 	}
 
-	fmt.Printf("key: %s, secret: %s\n", os.Getenv("PE_API_KEY"), os.Getenv("PE_SECRET_KEY"))
+	fmt.Printf("domain: %s, key: %s, secret: %s\n", os.Getenv("PE_ENDPOINT"),
+		os.Getenv("PE_API_KEY"), os.Getenv("PE_SECRET_KEY"))
 
 	exams, err := c.ListExams()
 	if err != nil {
