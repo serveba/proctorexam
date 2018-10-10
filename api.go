@@ -8,23 +8,51 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"os"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 )
 
 // https://medium.com/@marcus.olsson/writing-a-go-client-for-your-restful-api-c193a2f4998c
 // http://docs.proctorexam.com/v3/apidoc.html
 
+const apiPrefix string = "/api/v3"
+
+// Exams data struct
+type Exams struct {
+	Items []ExamItem `json:"exams"`
+}
+
+// ExamItem data struct
+type ExamItem struct {
+	ID          int64  `json:"id"`
+	InstituteID int64  `json:"institute_id"`
+	Name        string `json:"name"`
+}
+
 // Exam data struct
 type Exam struct {
-	foo string
+	Key ExamItem `json:"exam"`
+}
+
+// Users response of GET /USERS
+type Users struct {
+	Items []UserData `json:"users"`
+}
+
+// UserData data struct
+type UserData struct {
+	ID            int64  `json:"id"`
+	Email         string `json:"email"`
+	Name          string `json:"name"`
+	Role          string `json:"role"`
+	LogoImg       string `json:"logo_image"`
+	InstituteName string `json:"institute_name"`
 }
 
 // Client sdk structure
@@ -36,7 +64,7 @@ type Client struct {
 	apiSecretKey string
 }
 
-func (c *Client) newRequest(method, path string, body interface{}) (*http.Request, error) {
+func (c *Client) newRequest(method, path string, body interface{}, params map[string]string) (*http.Request, error) {
 	rel := &url.URL{Path: path}
 	u := c.BaseURL.ResolveReference(rel)
 	var buf io.ReadWriter
@@ -47,19 +75,10 @@ func (c *Client) newRequest(method, path string, body interface{}) (*http.Reques
 			return nil, err
 		}
 	}
-
-	ts := strconv.FormatUint(uint64(time.Now().UnixNano()/int64(time.Millisecond)), 10)
-	nonce := strconv.FormatUint(uint64(random(0, 10000000000000000)), 10)
-
-	params := map[string]string{
-		"nonce":     nonce,
-		"timestamp": ts,
-	}
-
 	signature := c.signParams(params)
-	target := fmt.Sprintf("%s?nonce=%s&timestamp=%s&signature=%s", u.String(), nonce, ts, signature)
+	target := fmt.Sprintf("%s?nonce=%s&timestamp=%s&signature=%s",
+		u.String(), params["nonce"], params["timestamp"], signature)
 
-	// fmt.Printf("target: %s", target)
 	req, err := http.NewRequest(method, target, buf)
 	if err != nil {
 		return nil, err
@@ -75,7 +94,11 @@ func (c *Client) newRequest(method, path string, body interface{}) (*http.Reques
 }
 
 func (c *Client) do(req *http.Request, v interface{}) (*http.Response, error) {
-	formatRequest(req)
+	reqDump, err := httputil.DumpRequest(req, true)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("%s", reqDump)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -83,12 +106,12 @@ func (c *Client) do(req *http.Request, v interface{}) (*http.Response, error) {
 	}
 	defer resp.Body.Close()
 
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	bodyString := string(bodyBytes)
-	fmt.Printf("RESPONSE: \n%s\n", bodyString)
+	// bodyBytes, err := ioutil.ReadAll(resp.Body)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// bodyString := string(bodyBytes)
+	// fmt.Printf("RESPONSE: \n%s\n", bodyString)
 
 	err = json.NewDecoder(resp.Body).Decode(v)
 	return resp, err
@@ -127,46 +150,58 @@ func random(min, max int64) int64 {
 	return rand.Int63n(max-min) + min
 }
 
-// ListExams method
-func (c *Client) ListExams() ([]Exam, error) {
-	req, err := c.newRequest("GET", "/api/v3/exams", nil)
-	if err != nil {
-		return nil, err
+func getBaseParams() map[string]string {
+	ts := strconv.FormatUint(uint64(time.Now().UnixNano()/int64(time.Millisecond)), 10)
+	nonce := strconv.FormatUint(uint64(random(0, 10000000000000000)), 10)
+	return map[string]string{
+		"nonce":     nonce,
+		"timestamp": ts,
 	}
-	var exams []Exam
+}
+
+// Exams method
+func (c *Client) Exams() (Exams, error) {
+	path := fmt.Sprintf("%s/exams", apiPrefix)
+	params := getBaseParams()
+	req, err := c.newRequest("GET", path, nil, params)
+	if err != nil {
+		return Exams{}, err
+	}
+	var exams Exams
 	_, err = c.do(req, &exams)
 	return exams, err
 }
 
-// formatRequest generates ascii representation of a request
-func formatRequest(r *http.Request) string {
-	// Create return string
-	var request []string
-	// Add the request string
-	url := fmt.Sprintf("%v %v %v\n", r.Proto, r.Method, r.URL)
-	request = append(request, url)
-	// Add the host
-	request = append(request, fmt.Sprintf("Host: %v\n", r.Host))
-	// Loop through headers
-	request = append(request, fmt.Sprintf("Headers: \n"))
-	for name, headers := range r.Header {
-		name = strings.ToLower(name)
-		for _, h := range headers {
-			request = append(request, fmt.Sprintf("\t%v: %v\n", name, h))
-		}
+// Exam method
+func (c *Client) Exam(id string) (*ExamItem, error) {
+	path := fmt.Sprintf("%s/exams/%s", apiPrefix, id)
+	params := getBaseParams()
+	params["id"] = id
+	req, err := c.newRequest("GET", path, nil, params)
+	if err != nil {
+		return nil, err
 	}
+	var exam Exam
+	_, err = c.do(req, &exam)
 
-	// If this is a POST, add post data
-	if r.Method == "POST" {
-		r.ParseForm()
-		request = append(request, "\n")
-		request = append(request, r.Form.Encode())
+	fmt.Printf("info: %v\n", exam)
+	return &exam.Key, err
+}
+
+// Users returns a list of users
+func (c *Client) Users(instituteID string) ([]UserData, error) {
+	path := fmt.Sprintf("%s/institutes/%s/users", apiPrefix, instituteID)
+	params := getBaseParams()
+	params["institute_id"] = instituteID
+	req, err := c.newRequest("GET", path, nil, params)
+	if err != nil {
+		return nil, err
 	}
-	// Return the request as a string
+	var users Users
+	_, err = c.do(req, &users)
 
-	fmt.Printf("REQUEST: \n%s\n", request)
-
-	return strings.Join(request, "\n")
+	fmt.Printf("Users: %v\n", users)
+	return users.Items, err
 }
 
 func main() {
@@ -186,10 +221,20 @@ func main() {
 	fmt.Printf("domain: %s, key: %s, secret: %s\n", os.Getenv("PE_ENDPOINT"),
 		os.Getenv("PE_API_KEY"), os.Getenv("PE_SECRET_KEY"))
 
-	exams, err := c.ListExams()
+	// exams, err := c.Exams()
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// fmt.Printf("exams: %v\n", exams)
+
+	users, err := c.Users("1")
+
 	if err != nil {
 		panic(err)
 	}
+	fmt.Printf("users: %v\n", users)
 
-	fmt.Printf("exams: %s\n", exams)
+	// exam, err := c.Exam("17")
+
+	// fmt.Printf("exam: %v\n", exam)
 }
