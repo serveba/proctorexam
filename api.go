@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"net/http/httputil"
@@ -61,13 +60,18 @@ type Users struct {
 	Items []User `json:"users"`
 }
 
-// Student response of GET /exams/id/show_student
+// Student nested object of GET /exams/id/show_student
 type Student struct {
 	ID     int64  `json:"id"`
 	Email  string `json:"email"`
 	Name   string `json:"name"`
 	Status string `json:"status"`
 	ExamID int64  `json:"exam_id"`
+}
+
+// StudentWrapper high level response of /exams/id/show_student
+type StudentWrapper struct {
+	Item Student `json:"student"`
 }
 
 // Students reponse of GET /exams/:id/index_students
@@ -110,8 +114,8 @@ func (c *Client) signParams(params map[string]string) string {
 	hash.Write([]byte(baseString))
 	signature := hex.EncodeToString(hash.Sum(nil))
 
-	fmt.Printf("baseString: %s\n", baseString)
-	fmt.Printf("Signature: %s\n", signature)
+	// fmt.Printf("baseString: %s\n", baseString)
+	// fmt.Printf("Signature: %s\n", signature)
 
 	return signature
 }
@@ -166,12 +170,14 @@ func (c *Client) do(req *http.Request, v interface{}) (*http.Response, error) {
 	}
 	defer resp.Body.Close()
 
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	bodyString := string(bodyBytes)
-	fmt.Printf("RESPONSE: \n%s\n", bodyString)
+	// ONLY for RESPONSE DEBUG
+	// bodyBytes, err := ioutil.ReadAll(resp.Body)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// bodyString := string(bodyBytes)
+	// fmt.Printf("RESPONSE: \n%s\n", bodyString)
+	// END DEBUGGING
 
 	err = json.NewDecoder(resp.Body).Decode(v)
 	return resp, err
@@ -238,8 +244,8 @@ func (c *Client) Users(instituteID int64) ([]User, error) {
 func (c *Client) ShowUser(instituteID, userID int64) (User, error) {
 	path := fmt.Sprintf("%s/institutes/%d/users/%d", apiPrefix, instituteID, userID)
 	params := getBaseParams()
-	params["id"] = strconv.Itoa(int(userID))
-	params["institute_id"] = strconv.Itoa(int(instituteID))
+	// params["id"] = strconv.Itoa(int(userID))
+	// params["institute_id"] = strconv.Itoa(int(instituteID))
 	req, err := c.newGetRequest(path, params, nil)
 	if err != nil {
 		return User{}, err
@@ -255,17 +261,16 @@ func (c *Client) ShowStudent(examID, studentSessionID int64) (Student, error) {
 	path := fmt.Sprintf("%s/exams/%d/show_student", apiPrefix, examID)
 	params := getBaseParams()
 	sessionID := strconv.Itoa(int(studentSessionID))
-	key := "student_session_id"
-	params[key] = sessionID
-	req, err := c.newGetRequest(path, params, map[string]string{key: sessionID})
-	// req, err := c.newGetRequest(path, params, nil)
+	params["student_session_id"] = sessionID
+	params["id"] = strconv.Itoa(int(examID))
+	req, err := c.newGetRequest(path, params, map[string]string{"student_session_id": sessionID})
 	if err != nil {
 		return Student{}, err
 	}
-	var student Student
-	_, err = c.do(req, &student)
+	var studentWrapper StudentWrapper
+	_, err = c.do(req, &studentWrapper)
 
-	return student, err
+	return studentWrapper.Item, err
 }
 
 // IndexStudents GET /exams/:id/index_students
@@ -314,10 +319,10 @@ func main() {
 	// fmt.Printf("user: %v\n", user)
 
 	// exam, err := c.Exam(70)
-	// fmt.Printf("exam: %v\n", *exam)
+	// fmt.Printf("exam: %v\n", exam)
 
 	// students, err := c.IndexStudents(70)
-	// fmt.Printf("students: %v\n", *students)
+	// fmt.Printf("students: %v\n", students)
 
 	student, err := c.ShowStudent(70, 804)
 	fmt.Printf("student: %v\n", student)
