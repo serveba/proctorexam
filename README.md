@@ -13,3 +13,4 @@ Golang SDK api wrapper for ProctorExam v3
 ``` bash
     curl -v - X GET https://protos.proctorexam.com/exams --header 'Authorization: Token token=YOUR_API_KEY'
 ```
+
