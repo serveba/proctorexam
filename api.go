@@ -1,4 +1,4 @@
-package main
+package proctorexam
 
 import (
 	"bytes"
@@ -323,7 +323,4 @@ func (api *API) IndexStudents(examID int64) ([]Student, error) {
 	err = api.do(req, &students)
 
 	return students.Items, nil
-}
-
-func main() {
 }
