@@ -324,3 +324,6 @@ func (api *API) IndexStudents(examID int64) ([]Student, error) {
 
 	return students.Items, nil
 }
+
+func main() {
+}
